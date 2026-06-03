@@ -1,6 +1,11 @@
-import type { KeyBinding } from "@opentui/core";
+import type { KeyBinding, TextareaRenderable } from "@opentui/core";
 import { EmptyBorder } from "./border";
 import { StatusBar } from "./status-bar";
+import { useCallback, useEffect, useRef } from "react";
+import { useRenderer } from "@opentui/react";
+import { useCommandMenu } from "./command-menu/use-command-menu";
+import type { Command } from "./command-menu/types";
+import { CommandMenu } from "./command-menu";
 
 type Props = {
   onSubmit: (input: string) => void;
@@ -15,6 +20,78 @@ export const TEXTAREA_KEY_BINDINGS: KeyBinding[] = [
 ];
 
 export function InputBar({ onSubmit, disabled = false }: Props) {
+  const textAreaRef = useRef<TextareaRenderable | null>(null);
+  const onSubmitRef = useRef<() => void>(() => {});
+  const renderer = useRenderer();
+
+  const {
+    showCommandMenu,
+    commandQuery,
+    selectedIndex,
+    scrollRef,
+    handleContentChange,
+    resolveCommand,
+    setSelectedIndex,
+  } = useCommandMenu();
+
+  const handleTextAreaContentChange = useCallback(() => {
+    const textArea = textAreaRef.current;
+    if (!textArea) return;
+    const text = textArea.plainText;
+    handleContentChange(text);
+  }, []);
+
+  const handleSubmit = useCallback(() => {
+    if (disabled) return;
+    const textArea = textAreaRef.current;
+    if (!textArea) return;
+    const text = textArea.plainText.trim();
+    if (text.length === 0) return;
+
+    onSubmit(text);
+    textArea.setText("");
+  }, [disabled, onSubmit]);
+
+  const handleCommand = useCallback(
+    (command: Command | undefined) => {
+      const textArea = textAreaRef.current;
+      if (!command || !textArea) return;
+      textArea.setText("");
+      if (command.action) {
+        command.action({
+          exit: () => renderer.destroy(),
+        });
+      } else {
+        textArea.insertText(command.value + " ");
+      }
+    },
+    [renderer],
+  );
+
+  const handleCommandExecute = useCallback((index: number) => {
+    const command = resolveCommand(index);
+    handleCommand(command);
+  }, [handleCommand, resolveCommand]);
+
+  useEffect(() => {
+    const textArea = textAreaRef.current;
+    if (!textArea) return;
+
+    textArea.onSubmit = () => {
+      onSubmitRef.current();
+    };
+  }, []);
+
+  onSubmitRef.current = () => {
+    if (disabled) return;
+    if (showCommandMenu) {
+      const command = resolveCommand(selectedIndex);
+      handleCommand(command);
+      return;
+    }
+
+    handleSubmit();
+  };
   return (
     <box width="100%" alignItems="center">
       <box
@@ -36,10 +113,30 @@ export function InputBar({ onSubmit, disabled = false }: Props) {
           width="100%"
           gap={1}
         >
+          {showCommandMenu && (
+            <box
+              position="absolute"
+              bottom="100%"
+              left={0}
+              width="100%"
+              backgroundColor="#1A1A24"
+              zIndex={10}
+            >
+              <CommandMenu
+                query={commandQuery}
+                selectedIndex={selectedIndex}
+                scrollRef={scrollRef}
+                onSelect={setSelectedIndex}
+                onExecute={handleCommandExecute}
+              />
+            </box>
+          )}
           <textarea
+            ref={textAreaRef}
             focused={!disabled}
             keyBindings={TEXTAREA_KEY_BINDINGS}
             placeholder={`Ask any thing..." Fix database schema bug"`}
+            onContentChange={handleTextAreaContentChange}
             width="100%"
           />
           <StatusBar />
