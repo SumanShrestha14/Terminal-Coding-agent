@@ -1,0 +1,17 @@
+{
+  "name": "@kodo/server",
+  "type": "module",
+  "private": "true",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "dev": "bun run --hot src/index.ts"
+  },
+  "dependencies": {
+    "@hono/zod-validator": "^0.8.0",
+    "@kodo/shared": "workspace:*",
+    "hono": "^4.12.25",
+    "zod": "^4.4.3"
+  }
+}
