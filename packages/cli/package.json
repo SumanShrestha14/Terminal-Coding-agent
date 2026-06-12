@@ -7,16 +7,20 @@
     "dev": "bun run --watch src/index.tsx"
   },
   "devDependencies": {
+    "@kodo/server": "workspace:*",
     "@types/bun": "latest"
   },
   "peerDependencies": {
     "typescript": "^5"
   },
   "dependencies": {
+    "@kodo/shared": "workspace:*",
     "@opentui/core": "^0.3.0",
     "@opentui/react": "^0.3.0",
+    "hono": "^4.12.25",
     "opentui-spinner": "^0.0.6",
     "react": "^19.2.6",
-    "react-router": "^7.17.0"
+    "react-router": "^7.17.0",
+    "zod": "^4.4.3"
   }
 }
