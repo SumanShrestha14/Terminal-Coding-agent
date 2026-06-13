@@ -2,42 +2,18 @@ import { zValidator } from "@hono/zod-validator";
 import { Hono } from "hono";
 import { HTTPException } from "hono/http-exception";
 import { z } from "zod";
+import { db } from "@kodo/database";
+import { ROLE, MODE, MessageStatus } from "@kodo/database/enums";
 import { findSupportedChatModel } from "@kodo/shared";
-
-type MockMessage = {
-  id: string;
-  //   title: string;
-  role: string;
-  content: string;
-  mode: string;
-  model: string;
-  status: string;
-  parts: null;
-  duration: null;
-  createdAt: string;
-  sessionId: string;
-};
-
-type MockSession = {
-  id: string;
-  title: string;
-  cwd: string | null;
-  userId: string;
-  createdAt: string;
-  messages: MockMessage[];
-};
-
-const sessions: MockSession[] = [];
-let nextId = 1;
 
 const createSessionSchema = z.object({
   title: z.string(),
-  cwd: z.string().optional(),
+  cwd: z.string(),
   initialMessage: z
     .object({
-      role: z.string(),
+      role: z.enum(ROLE),
       content: z.string(),
-      mode: z.string(),
+      mode: z.enum(MODE),
       model: z.string().refine((model) => !!findSupportedChatModel(model), {
         message: "Unsupported model",
       }),
@@ -61,17 +37,20 @@ const createSessionValidator = zValidator(
 );
 
 const app = new Hono()
-  .get("/", (c) => {
-    const result = sessions.map(({ id, title, createdAt }) => ({
-      id,
-      title,
-      createdAt,
-    }));
-    return c.json(result);
+  .get("/", async (c) => {
+    const sessions = await db.session.findMany({
+      orderBy: { createdAt: "desc" },
+      select: {
+        id: true,
+        title: true,
+        createdAt: true,
+      },
+    });
+    return c.json(sessions);
   })
   .get("/:id", async (c) => {
     // MOCK : Uncomment to simulate slow session loading
-    await new Promise((resolve) => setTimeout(resolve, 5000));
+    // await new Promise((resolve) => setTimeout(resolve, 5000));
 
     // MOCK : Uncomment to simulate session loading failure
     // throw new HTTPException(500, {
@@ -79,7 +58,14 @@ const app = new Hono()
     // });
 
     const { id } = c.req.param();
-    const session = sessions.find((s) => s.id === id);
+    const session = await db.session.findUnique({
+      where: { id },
+      include: {
+        messages: {
+          orderBy: { createdAt: "asc" },
+        },
+      },
+    });
 
     if (!session) {
       return c.json(
@@ -92,7 +78,7 @@ const app = new Hono()
 
     return c.json(session);
   })
-  .post("/", createSessionValidator,async  (c) => {
+  .post("/", createSessionValidator, async (c) => {
     // MOCK : Uncomment to simulate slow session loading
     // await new Promise((resolve) => setTimeout(resolve, 1000));
     // MOCK : Uncomment to simulate session loading failure
@@ -101,35 +87,22 @@ const app = new Hono()
     // });
 
     const { initialMessage, ...data } = c.req.valid("json");
-
-    const id = String(nextId++);
-    const now = new Date().toISOString();
-    const message: MockMessage[] = [];
-    if (initialMessage) {
-      message.push({
-        id: String(nextId++),
-        role: initialMessage.role,
-        content: initialMessage.content,
-        mode: initialMessage.mode,
-        model: initialMessage.model,
-        status: "COMPLETE",
-        parts: null,
-        duration: null,
-        createdAt: now,
-        sessionId: id,
-      });
-    }
-    const session: MockSession = {
-      id: id,
-      title: data.title,
-      cwd: data.cwd || null,
-      userId: "mock-user",
-      createdAt: now,
-      messages: message,
-    };
-    sessions.push(session);
+    const session = await db.session.create({
+      data: {
+        ...data,
+        userId: "mock-user-id",
+        ...(initialMessage && {
+          messages: {
+            create: {
+              ...initialMessage,
+              status: MessageStatus.COMPLETE,
+            },
+          },
+        }),
+      },
+      include: { messages: true },
+    });
     return c.json(session, 201);
   });
-
 
 export default app;
