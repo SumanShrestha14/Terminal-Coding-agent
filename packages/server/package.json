@@ -12,6 +12,8 @@
     "@hono/zod-validator": "^0.8.0",
     "@kodo/database": "workspace:*",
     "@kodo/shared": "workspace:*",
+    "@sentry/bun": "^10.57.0",
+    "@sentry/hono": "^10.57.0",
     "dotenv": "^17.4.2",
     "hono": "^4.12.25",
     "zod": "^4.4.3"
