@@ -2,7 +2,7 @@ import { zValidator } from "@hono/zod-validator";
 import { Hono } from "hono";
 import { HTTPException } from "hono/http-exception";
 import { z } from "zod";
-import { db } from "@kodo/database";
+import { db } from "@kodo/database/client";
 import { ROLE, MODE, MessageStatus } from "@kodo/database/enums";
 import { findSupportedChatModel } from "@kodo/shared";
 
@@ -49,14 +49,6 @@ const app = new Hono()
     return c.json(sessions);
   })
   .get("/:id", async (c) => {
-    // MOCK : Uncomment to simulate slow session loading
-    // await new Promise((resolve) => setTimeout(resolve, 5000));
-
-    // MOCK : Uncomment to simulate session loading failure
-    // throw new HTTPException(500, {
-    //   message: "MOCK Error : Failed to load session",
-    // });
-
     const { id } = c.req.param();
     const session = await db.session.findUnique({
       where: { id },
@@ -79,13 +71,6 @@ const app = new Hono()
     return c.json(session);
   })
   .post("/", createSessionValidator, async (c) => {
-    // MOCK : Uncomment to simulate slow session loading
-    // await new Promise((resolve) => setTimeout(resolve, 1000));
-    // MOCK : Uncomment to simulate session loading failure
-    // throw new HTTPException(500, {
-    //   message: "MOCK Error : Failed to load session",
-    // });
-
     const { initialMessage, ...data } = c.req.valid("json");
     const session = await db.session.create({
       data: {
