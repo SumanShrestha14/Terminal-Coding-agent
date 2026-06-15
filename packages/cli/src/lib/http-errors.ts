@@ -1,18 +1,22 @@
 type ErrorResonse = {
-    json : ()=>Promise<unknown>
-    status : number,
-    statusText : string
-}
+  json: () => Promise<unknown>;
+  status: number;
+  statusText: string;
+};
 
-export async function getErrorMessage(response : ErrorResonse){
-    try{
-        const data = await response.json() as {error?:string};
-        if(typeof data.error === "string" && data.error.length >0){
-            return data.error
-        }
+export async function getErrorMessage(response: ErrorResonse) {
+  try {
+    const data = (await response.json()) as { error?: string };
+    if (typeof data.error === "string" && data.error.length > 0) {
+      return data.error;
     }
-    catch{
-        // Ignore invalid error payloads and fall back to the status text below
-        return response.statusText || `Request failed with status ${response.status}`;
-    }
+    return (
+      response.statusText || `Request failed with status ${response.status}`
+    );
+  } catch {
+    // Ignore invalid error payloads and fall back to the status text below
+    return (
+      response.statusText || `Request failed with status ${response.status}`
+    );
+  }
 }

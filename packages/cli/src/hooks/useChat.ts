@@ -1,0 +1,306 @@
+import { EventSourceParserStream } from "eventsource-parser/stream";
+import { useRef, useCallback, useState, useEffect } from "react";
+import prettyMs from "pretty-ms";
+import type { ClientResponse } from "hono/client";
+import { apiClient } from "../lib/api-client";
+import { getErrorMessage } from "../lib/http-errors";
+import type { MODE } from "@kodo/database/enums";
+import { chatStreamEventSchema, type SupportedChatModelId } from "@kodo/shared";
+
+export type ClientMessagePart = { type: "text"; text: string };
+export type Message =
+  | {
+      id: string;
+      role: "user";
+      content: string;
+      mode: MODE;
+      model: SupportedChatModelId;
+    }
+  | {
+      id: string;
+      role: "assistant";
+      content: string;
+      mode: MODE;
+      model: SupportedChatModelId;
+      parts: ClientMessagePart[];
+      duration?: string;
+    }
+  | {
+      id: string;
+      role: "error";
+      content: string;
+    };
+
+type StreamingState =
+  | { status: "idle" }
+  | {
+      status: "streaming";
+      parts: ClientMessagePart[];
+      mode: MODE;
+      model: SupportedChatModelId;
+    };
+
+type ActiveStream = {
+  requestId: string;
+  controller: AbortController;
+  mode: MODE;
+  model: SupportedChatModelId;
+  parts: ClientMessagePart[];
+};
+
+type RunStreamParams = {
+  mode: MODE;
+  model: SupportedChatModelId;
+  request: (controller: AbortController) => Promise<ClientResponse<unknown>>;
+};
+
+type SubmitParams = {
+  userText: string;
+  mode: MODE;
+  model: SupportedChatModelId;
+};
+
+export function useChat(sessionId: string, initialMessage: Message[]) {
+  const [messages, setMessages] = useState<Message[]>(initialMessage);
+  const [streamingState, setStreamingState] = useState<StreamingState>({
+    status: "idle",
+  });
+  const activeStreamRef = useRef<ActiveStream | null>(null);
+
+  const updateMessages = useCallback(
+    (updater: (prevMessages: Message[]) => Message[]) => {
+      setMessages((prevMessages) => updater(prevMessages));
+    },
+    [],
+  );
+
+  const isActiveRequest = useCallback((requestId: string) => {
+    return activeStreamRef.current?.requestId === requestId;
+  }, []);
+
+  const emitParts = useCallback(
+    (requestId: string, parts: ClientMessagePart[]) => {
+      if (!isActiveRequest(requestId)) {
+        return;
+      }
+      const snapshot = [...parts];
+      const activeStream = activeStreamRef.current;
+      if (!activeStream) return;
+      activeStream.parts = snapshot;
+      setStreamingState({
+        status: "streaming",
+        parts: snapshot,
+        mode: activeStream.mode,
+        model: activeStream.model,
+      });
+    },
+    [isActiveRequest],
+  );
+  const clearStream = useCallback(
+    (requestId: string) => {
+      if (!isActiveRequest(requestId)) {
+        return;
+      }
+      activeStreamRef.current = null;
+      setStreamingState({ status: "idle" });
+    },
+    [isActiveRequest],
+  );
+
+  const handleStream = useCallback(
+    async (response: ClientResponse<unknown>, activeStream: ActiveStream) => {
+      if (!isActiveRequest(activeStream.requestId)) {
+        return;
+      }
+
+      if (!response.ok) {
+        const message = await getErrorMessage(response);
+        updateMessages((prev) => [
+          ...prev,
+          {
+            id: crypto.randomUUID(),
+            role: "error",
+            content: message,
+          },
+        ]);
+        return;
+      }
+
+      const parts: ClientMessagePart[] = [];
+      const stream = response
+        .body!.pipeThrough(new TextDecoderStream())
+        .pipeThrough(new EventSourceParserStream());
+
+      for await (const { data } of stream) {
+        if (!isActiveRequest(activeStream.requestId)) {
+          return;
+        }
+        let event;
+        try {
+          event = chatStreamEventSchema.parse(JSON.parse(data));
+        } catch (err) {
+          const message = err instanceof Error ? err.message : String(err);
+          updateMessages((prev) => [
+            ...prev,
+            {
+              id: crypto.randomUUID(),
+              role: "error",
+              content: `Failed to parse stream event: ${message}`,
+            },
+          ]);
+          break;
+        }
+        switch (event.type) {
+          case "text-delta": {
+            const last = parts[parts.length - 1];
+            if (last && last.type === "text") {
+              last.text += event.text;
+            } else {
+              parts.push({ type: "text", text: event.text });
+              emitParts(activeStream.requestId, parts);
+            }
+            break;
+          }
+          case "done": {
+            if (!isActiveRequest(activeStream.requestId)) {
+              return;
+            }
+            const fullText = parts
+              .filter((p) => p.type === "text")
+              .map((p) => p.text)
+              .join("");
+            updateMessages((prev) => [
+              ...prev,
+              {
+                id: event.messageId,
+                role: "assistant",
+                content: fullText,
+                mode: activeStream.mode,
+                model: activeStream.model,
+                parts: [...parts],
+                duration: prettyMs(event.durationMs),
+              },
+            ]);
+            break;
+          }
+          case "error": {
+            updateMessages((prev) => [
+              ...prev,
+              {
+                id: crypto.randomUUID(),
+                role: "error",
+                content: event.message,
+              },
+            ]);
+            break;
+          }
+        }
+      }
+    },
+    [updateMessages, isActiveRequest, emitParts],
+  );
+  const runStream = useCallback(
+    async ({ mode, model, request }: RunStreamParams) => {
+      const controller = new AbortController();
+      const activeStream: ActiveStream = {
+        requestId: crypto.randomUUID(),
+        controller,
+        mode,
+        model,
+        parts: [],
+      };
+      activeStreamRef.current = activeStream;
+      setStreamingState({
+        status: "streaming",
+        parts: [],
+        mode,
+        model,
+      });
+
+      try {
+        const response = await request(controller);
+        await handleStream(response, activeStream);
+      } catch (err) {
+        if (err instanceof DOMException && err.name === "AbortError") {
+          return;
+          // do nothing on abort
+        }
+        if (!isActiveRequest(activeStream.requestId)) {
+          return;
+        }
+
+        const msg = err instanceof Error ? err.message : String(err);
+        updateMessages((prev) => [
+          ...prev,
+          {
+            id: crypto.randomUUID(),
+            role: "error",
+            content: `Stream request failed: ${msg}`,
+          },
+        ]);
+      } finally {
+        clearStream(activeStream.requestId);
+      }
+    },
+    [clearStream, handleStream, updateMessages, isActiveRequest],
+  );
+
+  const resume = useCallback(
+    async ({ mode, model }: Omit<SubmitParams, "userText">) => {
+      await runStream({
+        mode,
+        model,
+        request: async (controller) => {
+          return apiClient.chat[":sessionId"].resume.$post(
+            { param: { sessionId } },
+            { init: { signal: controller.signal } },
+          );
+        },
+      });
+    },
+    [runStream , sessionId],
+  );
+  // Auto resume when the conversation ends with a user message that has no reply
+  const hasAutoResumeRef = useRef(false);
+  useEffect(() => {
+    if(hasAutoResumeRef.current) return;
+    const lastMessage = messages[messages.length - 1];
+    if(!lastMessage || lastMessage.role !== "user") return;
+
+    hasAutoResumeRef.current = true;
+    void resume({ mode: lastMessage.mode, model: lastMessage.model });
+  },[initialMessage, resume]);
+
+  const submit = useCallback(async (
+    {userText,mode,model} : SubmitParams
+  )=>{
+    const userMessage : Message = {
+      id: crypto.randomUUID(),
+      role: "user",
+      content: userText,
+      mode,
+      model,
+    }
+
+    updateMessages((prev) => [...prev, userMessage]);
+    await runStream({
+      mode,
+      model,
+      request: async (controller) => {
+        return apiClient.chat[":sessionId"].$post(
+          { param: { sessionId }, json: { content : userText, mode, model } },
+          { init: { signal: controller.signal } },
+        );
+      }
+    })
+  },[runStream, sessionId, updateMessages]);
+
+  const abort = useCallback(() => {
+    const activeStream = activeStreamRef.current;
+    if(!activeStream) return;
+    activeStreamRef.current = null;
+    setStreamingState({ status: "idle" });
+    activeStream.controller.abort();
+  },[]); 
+  return {messages, streamingState, submit, abort};
+}
