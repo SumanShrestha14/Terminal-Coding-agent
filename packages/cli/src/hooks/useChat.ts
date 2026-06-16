@@ -120,7 +120,7 @@ export function useChat(sessionId: string, initialMessage: Message[]) {
         interrupted: true,
       },
     ]);
-  },[]);
+  },[updateMessages]);
   const clearStream = useCallback(
     (requestId: string) => {
       if (!isActiveRequest(requestId)) {
