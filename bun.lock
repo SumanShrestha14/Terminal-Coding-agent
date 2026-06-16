@@ -8,7 +8,7 @@
       },
     },
     "packages/cli": {
-      "name": "@kode/cli",
+      "name": "@kodo/cli",
       "dependencies": {
         "@kodo/database": "workspace:*",
         "@kodo/shared": "workspace:*",
@@ -86,7 +86,7 @@
 
     "@hono/zod-validator": ["@hono/zod-validator@0.8.0", "", { "peerDependencies": { "hono": ">=4.10.0", "zod": "^3.25.0 || ^4.0.0" } }, "sha512-5uS4S1/LKtZQYvD4BtpPUFkOv8d1wNxHHrChm26buMiEYc1FrHWvDUaKVBwkiVtvSExHSpLGDvcnpI2Copyj9w=="],
 
-    "@kode/cli": ["@kode/cli@workspace:packages/cli"],
+    "@kodo/cli": ["@kodo/cli@workspace:packages/cli"],
 
     "@kodo/database": ["@kodo/database@workspace:packages/database"],
 
