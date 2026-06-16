@@ -20,6 +20,8 @@ const submitValidator = zValidator("json", submitSchma, (res, ctx) => {
   }
 });
 
+const activeResumeSessionIds = new Set<string>();
+
 function buildConversationHistory(
   messages: {
     role: "USER" | "ASSISTANT" | "ERROR";
@@ -40,6 +42,19 @@ function buildConversationHistory(
   });
 }
 
+function getResumableUserMessage(
+  messages: {
+    role: "USER" | "ASSISTANT" | "ERROR";
+    model: string;
+    mode: MODE;
+  }[],
+) {
+  const lastMessage = messages[messages.length - 1];
+  if(!lastMessage || lastMessage.role !== "USER") return null;
+
+  return lastMessage;
+}
+
 type streamParams = {
   sessionId: string;
   model: string;
@@ -56,7 +71,23 @@ async function streamAIResponse(
   const startTime = Date.now();
   const resolvedModel = resolveChatModel(model);
   let fullText = "";
-  try {
+
+  const persistInteruptedMessage = async ()=>{
+    if(fullText.length === 0) return;
+    const duration = Date.now() - startTime;
+    await db.message.create({
+      data:{
+        sessionId,
+        role: "ASSISTANT",
+        status: MessageStatus.INTERRUPTED,
+        model,
+        content: fullText,
+        mode,
+        duration: Math.round(duration / 1000),
+      }
+    })
+  } 
+   try {
     const result = aiStreamText({
       model: resolvedModel.model,
       messages: history,
@@ -76,7 +107,7 @@ async function streamAIResponse(
         throw chunk.error;
       }
     }
-    if (stream.aborted || abortController.signal.aborted) return;
+    if (stream.aborted || abortController.signal.aborted) {await persistInteruptedMessage(); return};
     const endTime = Date.now() - startTime;
     const assistantMessage = await db.message.create({
       data: {
@@ -98,7 +129,7 @@ async function streamAIResponse(
 
     await stream.writeSSE({ event: "done", data: JSON.stringify(doneEvent) });
   } catch (err) {
-    if (abortController.signal.aborted) return;
+    if (abortController.signal.aborted) {await persistInteruptedMessage(); return};
     const message = err instanceof Error ? err.message : String(err);
     await db.message.create({
       data: {
@@ -126,34 +157,54 @@ const chat = new Hono()
       return ctx.json({ error: "Session not found" }, 404);
     }
 
-    const lastMesage = session.messages[session.messages.length - 1];
-    if (!lastMesage || lastMesage.role !== "USER") {
+    const resumableMessage = getResumableUserMessage(session.messages);
+    if (!resumableMessage) {
       return ctx.json(
         { error: "Session has no pending user message to resume" },
         409,
       );
     }
 
-    if (!isSupportedChatModel(lastMesage.model)) {
-      return ctx.json({ error: `Unsupported model : ${lastMesage.model}` }, 409);
+    if (!isSupportedChatModel(resumableMessage.model)) {
+      return ctx.json(
+        { error: `Unsupported model : ${resumableMessage.model}` },
+        409,
+      );
     }
+
+    if(activeResumeSessionIds.has(sessionId)){
+      return ctx.json(
+        { error: "Session already has an active resume connection" },
+        409,
+      );
+    }
+
+    activeResumeSessionIds.add(sessionId);
 
     const history = buildConversationHistory(session.messages);
     const abortController = new AbortController();
-    return streamSSE(ctx, async (stream) => {
-      stream.onAbort(() => {
-        abortController.abort();
+    try{
+      return streamSSE(ctx, async (stream) => {
+        stream.onAbort(() => {
+          abortController.abort();
       });
+      try{
 
-      await streamAIResponse(stream, {
-        sessionId,
-        model: lastMesage.model,
-        mode: lastMesage.mode,
-        abortController,
-        history,
-      });
-      
+        await streamAIResponse(stream, {
+          sessionId,
+          model: resumableMessage.model,
+          mode: resumableMessage.mode,
+          abortController,
+          history,
+        });
+      }finally{
+        activeResumeSessionIds.delete(sessionId);
+      }
     });
+  }catch(err){
+    activeResumeSessionIds.delete(sessionId);
+    throw err;
+  }
   })
   .post("/:sessionId", submitValidator, async (ctx) => {
     const { sessionId } = ctx.req.param();
