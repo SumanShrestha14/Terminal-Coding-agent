@@ -1,8 +1,9 @@
 import { Hono } from "hono";
-import {sentry} from "@sentry/hono/bun";
+import { sentry } from "@sentry/hono/bun";
 import * as Sentry from "@sentry/hono/bun";
 import { HTTPException } from "hono/http-exception";
 import sessions from "./routes/session";
+import chat from "./routes/chat";
 
 const app = new Hono();
 
@@ -17,22 +18,21 @@ app.use(
 
 app.get("/debug-sentry", () => {
   // Send a log before throwing the error
-  Sentry.logger.info('User triggered test error', {
-    action: 'test_error_endpoint',
+  Sentry.logger.info("User triggered test error", {
+    action: "test_error_endpoint",
   });
   // Send a test metric before throwing the error
-  Sentry.metrics.count('test_counter', 1);
+  Sentry.metrics.count("test_counter", 1);
   throw new Error("My first Sentry error!");
 });
 
 app.onError((err, c) => {
   if (err instanceof HTTPException) {
-
-    Sentry.logger.warn('Handled HTTP exception', {
+    Sentry.logger.warn("Handled HTTP exception", {
       status: err.status,
       message: err.message || "Request failed",
       path: c.req.url,
-      method : c.req.method,
+      method: c.req.method,
     });
     return c.json(
       {
@@ -49,6 +49,6 @@ app.onError((err, c) => {
   return c.json({ error: "Internal Server error!" }, 500);
 });
 
-const routes = app.route("/sessions", sessions);
+const routes = app.route("/sessions", sessions).route("/chat", chat);
 export type AppType = typeof routes;
-export default { port: 3000, fetch : app.fetch, idleTimeout: 255 };
+export default { port: 3000, fetch: app.fetch, idleTimeout: 255 };

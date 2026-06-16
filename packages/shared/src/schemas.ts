@@ -26,11 +26,11 @@ export type MessagePart = z.infer<typeof messagePartSchema>;
 
 export const chatStreamEventSchema = z.discriminatedUnion("type", [
   z.object({
-    type: z.literal("text-data"),
+    type: z.literal("text-delta"),
     text: z.string(),
   }),
   z.object({
-    type: z.literal("reasoning-data"),
+    type: z.literal("reasoning-delta"),
     text: z.string(),
   }),
   z.object({
