@@ -14,7 +14,7 @@ const MAX_VISIBLE_ITEMS = 6;
 type DialogSearchListProps<T> = {
   items: T[];
   onSelect: (item: T) => void;
-  onHighlight: (item: T) => ReactNode;
+  onHighlight ?: (item: T) => ReactNode;
   filterfn: (item: T, query: string) => boolean;
   renderItem: (item: T, isSelected: boolean) => ReactNode;
   getKey: (item: T) => string;
