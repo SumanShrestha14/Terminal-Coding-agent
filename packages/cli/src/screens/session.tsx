@@ -170,7 +170,7 @@ export function Session() {
   if (!session) {
     return (
       <SessionShell onSubmit={() => {}} inputDisabled loading>
-        {" "}
+        {""}
       </SessionShell>
     );
   }

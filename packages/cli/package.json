@@ -14,10 +14,11 @@
     "typescript": "^5"
   },
   "dependencies": {
-    "@kodo/shared": "workspace:*",
     "@kodo/database": "workspace:*",
+    "@kodo/shared": "workspace:*",
     "@opentui/core": "^0.3.0",
     "@opentui/react": "^0.3.0",
+    "date-fns": "^4.4.0",
     "eventsource-parser": "^3.1.0",
     "hono": "^4.12.25",
     "opentui-spinner": "^0.0.6",
