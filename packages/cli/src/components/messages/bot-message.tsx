@@ -1,11 +1,7 @@
 import { useTheme } from "../../providers/theme";
-import type {
-  ClientMessagePart,
-  ClientToolCallPart,
-} from "../../hooks/useChat";
+import type { ClientMessagePart } from "../../hooks/useChat";
 import { MODE } from "@kodo/database/enums";
 import { TextAttributes } from "@opentui/core";
-import { EmptyBorder } from "../border";
 
 type Props = {
   parts: ClientMessagePart[];
@@ -16,46 +12,6 @@ type Props = {
   interrupted?: boolean;
 };
 
-function formatToolName(name: string) {
-  return name
-    .replace(/([a-z0-9])([A-Z])/g, "$1 $2")
-    .replace(/^./, (c) => c.toUpperCase());
-}
-
-function formatToolArgs(tc: ClientToolCallPart): string {
-  return Object.values(tc.args).map(String).join(" ");
-}
-
-type PartGroup = {
-  type: ClientMessagePart["type"];
-  parts: ClientMessagePart[];
-  key: string;
-};
-
-function groupConsecutiveParts(parts: ClientMessagePart[]): PartGroup[] {
-  const groups: PartGroup[] = [];
-
-  for (let i = 0; i < parts.length; i++) {
-    const part = parts[i] as ClientMessagePart;
-    const lastGroup = groups[groups.length - 1];
-
-    if (lastGroup && lastGroup.type === part.type) {
-      lastGroup.parts.push(part);
-    } else {
-      const key =
-        part.type === "tool-call"
-          ? `group-tc-${part.id}`
-          : `group-${part.type}-${i}`;
-      groups.push({
-        type: part.type,
-        parts: [part],
-        key,
-      });
-    }
-  }
-  return groups;
-}
-
 export function BotMessage({
   parts,
   model,
@@ -65,64 +21,17 @@ export function BotMessage({
   interrupted = false,
 }: Props) {
   const { colors } = useTheme();
+  const text = parts
+    .filter((part) => part.type === "text")
+    .map((part) => part.text)
+    .join("");
   return (
-    <box width="100%" alignItems="center">
-      {groupConsecutiveParts(parts).map((group, i) => (
-        <box key={group.key} width="100%" paddingTop={i === 0 ? 0 : 1}>
-          {group.parts.map((part, j) => {
-            if (part.type === "reasoning") {
-              return (
-                <box
-                  key={`reasoning-${j}`}
-                  border={["left"]}
-                  borderColor={colors.thinkingBorder}
-                  customBorderChars={{
-                    ...EmptyBorder,
-                    vertical: "│",
-                  }}
-                  width="100%"
-                  paddingX={2}
-                >
-                  <text attributes={TextAttributes.DIM}>
-                    <em fg={colors.thinking}>Thinking:</em> {part.text}
-                  </text>
-                </box>
-              );
-            }
-
-            if (part.type === "tool-call") {
-              return (
-                <box
-                  key={part.id}
-                  border={["left"]}
-                  borderColor={colors.thinkingBorder}
-                  customBorderChars={{
-                    ...EmptyBorder,
-                    vertical: "│",
-                  }}
-                  width="100%"
-                  paddingX={2}
-                >
-                  <text attributes={TextAttributes.DIM}>
-                    <em fg={colors.info}>{formatToolName(part.name)}:</em> {formatToolArgs(part)}
-                    {part.status === "calling"? "..." :""}
-                  </text>
-                </box>
-              );
-            }
-
-            if (part.type === "text") {
-              return (
-                <box key={`text-${j}`} paddingX={3} width="100%">
-                  <text>{part.text}</text>
-                </box>
-              );
-            }
-
-            return null;
-          })}
+    <box width={"100%"} alignItems="center">
+      <box paddingY={1} width={"100%"}>
+        <box paddingX={1} width={"100%"}>
+          <text>{text}</text>
         </box>
-      ))}
+      </box>
 
       <box paddingX={1} paddingBottom={1} width={"100%"} gap={1}>
         <box flexDirection="row" gap={2}>

@@ -7,23 +7,9 @@ import { getErrorMessage } from "../lib/http-errors";
 import type { MODE } from "@kodo/database/enums";
 import { chatStreamEventSchema, type SupportedChatModelId } from "@kodo/shared";
 
-export type ClientMessagePart =
-  | { type: "reasoning"; text: string }
-  | {
-      type: "tool-call";
-      id: string;
-      name: string;
-      args: Record<string, unknown>;
-      results?: string;
-      status: "calling" | "done";
-    }
-  | { type: "text"; text: string };
-export type ClientToolCallPart = Extract<
-  ClientMessagePart,
-  { type: "tool-call" }
->;
+export type ClientMessagePart = { type: "text"; text: string };
 export type Message =
-  | { 
+  | {
       id: string;
       role: "user";
       content: string;
@@ -113,31 +99,28 @@ export function useChat(sessionId: string, initialMessage: Message[]) {
     [isActiveRequest],
   );
 
-  const captureInterrptedMessage = useCallback(
-    (activeStream: ActiveStream) => {
-      if (activeStream.interruptedCapture || activeStream.parts.length === 0)
-        return;
-      activeStream.interruptedCapture = true;
-      const parts = [...activeStream.parts];
-      const fullText = parts
-        .filter((p) => p.type === "text")
-        .map((p) => p.text)
-        .join("");
-      updateMessages((prev) => [
-        ...prev,
-        {
-          id: crypto.randomUUID(),
-          role: "assistant",
-          content: fullText,
-          mode: activeStream.mode,
-          model: activeStream.model,
-          parts,
-          interrupted: true,
-        },
-      ]);
-    },
-    [updateMessages],
-  );
+  const captureInterrptedMessage = useCallback((
+    activeStream: ActiveStream,
+  ) => {
+    if(activeStream.interruptedCapture || activeStream.parts.length===0) return;
+    activeStream.interruptedCapture = true;
+    const parts = [...activeStream.parts];
+    const fullText = parts      .filter((p) => p.type === "text")
+      .map((p) => p.text)
+      .join("");
+    updateMessages((prev) => [
+      ...prev,
+      {
+        id: crypto.randomUUID(),
+        role: "assistant",
+        content: fullText,
+        mode: activeStream.mode,
+        model: activeStream.model,
+        parts,
+        interrupted: true,
+      },
+    ]);
+  },[updateMessages]);
   const clearStream = useCallback(
     (requestId: string) => {
       if (!isActiveRequest(requestId)) {
@@ -193,39 +176,6 @@ export function useChat(sessionId: string, initialMessage: Message[]) {
           break;
         }
         switch (event.type) {
-          case "reasoning-delta": {
-            const last = parts[parts.length - 1];
-            if (last && last.type === "reasoning") {
-              last.text += event.text;
-            } else {
-              parts.push({ type: "reasoning", text: event.text });
-            }
-            emitParts(activeStream.requestId, parts);
-            break;
-          }
-          case "tool-call": {
-            parts.push({
-              type: "tool-call",
-              id: event.toolCallId,
-              name: event.toolName,
-              args: event.args,
-              status: "calling",
-            });
-            emitParts(activeStream.requestId, parts);
-            break;
-          }
-          case "tool-result": {
-            const tc = parts.find(
-              (p): p is ClientToolCallPart =>
-                p.type === "tool-call" && p.id === event.toolCallId,
-            );
-            if (tc) {
-              tc.results = event.result;
-              tc.status = "done";
-            }
-            emitParts(activeStream.requestId, parts);
-            break;
-          }
           case "text-delta": {
             const last = parts[parts.length - 1];
             if (last && last.type === "text") {
@@ -321,17 +271,16 @@ export function useChat(sessionId: string, initialMessage: Message[]) {
     [clearStream, handleStream, updateMessages, isActiveRequest],
   );
 
-  const stopActiveStream = useCallback(
-    (capturePartial: boolean) => {
-      const activeStream = activeStreamRef.current;
-      if (!activeStream) return;
-      if (capturePartial) captureInterrptedMessage(activeStream);
-      activeStreamRef.current = null;
-      setStreamingState({ status: "idle" });
-      activeStream.controller.abort();
-    },
-    [captureInterrptedMessage],
-  );
+  const stopActiveStream = useCallback((
+    capturePartial :boolean,
+  )=>{
+    const activeStream = activeStreamRef.current;
+    if(!activeStream) return;
+    if(capturePartial) captureInterrptedMessage(activeStream);
+    activeStreamRef.current = null;
+    setStreamingState({ status: "idle" });
+    activeStream.controller.abort();
+  },[captureInterrptedMessage]);
 
   const resume = useCallback(
     async ({ mode, model }: Omit<SubmitParams, "userText">) => {
@@ -346,50 +295,50 @@ export function useChat(sessionId: string, initialMessage: Message[]) {
         },
       });
     },
-    [runStream, sessionId],
+    [runStream , sessionId],
   );
   // Auto resume when the conversation ends with a user message that has no reply
   const hasAutoResumeRef = useRef(false);
   useEffect(() => {
-    if (hasAutoResumeRef.current) return;
+    if(hasAutoResumeRef.current) return;
     const lastMessage = messages[messages.length - 1];
-    if (!lastMessage || lastMessage.role !== "user") return;
+    if(!lastMessage || lastMessage.role !== "user") return;
 
     hasAutoResumeRef.current = true;
     void resume({ mode: lastMessage.mode, model: lastMessage.model });
-  }, [initialMessage, resume]);
+  },[initialMessage, resume]);
 
-  const submit = useCallback(
-    async ({ userText, mode, model }: SubmitParams) => {
-      stopActiveStream(true);
-      const userMessage: Message = {
-        id: crypto.randomUUID(),
-        role: "user",
-        content: userText,
-        mode,
-        model,
-      };
+  const submit = useCallback(async (
+    {userText,mode,model} : SubmitParams
+  )=>{
 
-      updateMessages((prev) => [...prev, userMessage]);
-      await runStream({
-        mode,
-        model,
-        request: async (controller) => {
-          return apiClient.chat[":sessionId"].$post(
-            { param: { sessionId }, json: { content: userText, mode, model } },
-            { init: { signal: controller.signal } },
-          );
-        },
-      });
-    },
-    [runStream, sessionId, updateMessages, stopActiveStream],
-  );
+    stopActiveStream(true);
+    const userMessage : Message = {
+      id: crypto.randomUUID(),
+      role: "user",
+      content: userText,
+      mode,
+      model,
+    }
+
+    updateMessages((prev) => [...prev, userMessage]);
+    await runStream({
+      mode,
+      model,
+      request: async (controller) => {
+        return apiClient.chat[":sessionId"].$post(
+          { param: { sessionId }, json: { content : userText, mode, model } },
+          { init: { signal: controller.signal } },
+        );
+      }
+    })
+  },[runStream, sessionId, updateMessages , stopActiveStream]);
 
   const abort = useCallback(() => {
     stopActiveStream(false);
-  }, [stopActiveStream]);
+  },[stopActiveStream]); 
   const interrupt = useCallback(() => {
     stopActiveStream(true);
-  }, [stopActiveStream]);
-  return { messages, streamingState, submit, abort, interrupt };
+  },[stopActiveStream]);
+  return {messages, streamingState, submit, abort , interrupt};
 }
