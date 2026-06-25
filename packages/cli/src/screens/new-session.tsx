@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef } from "react";
 import { z } from "zod";
-import { DEFAULT_CHAT_MODEL_ID } from "@kodo/shared";
+import {MODE} from "@kodo/database/enums";
 import { useNavigate, useLocation } from "react-router";
 import { useTheme } from "../providers/theme";
 import { BotMessage, ErrorMessage, UserMessage } from "../components/messages";
@@ -11,6 +11,8 @@ import { getErrorMessage } from "../lib/http-errors";
 
 const newSessionStateSchema = z.object({
   message: z.string(),
+  mode : z.enum(MODE),
+  model : z.string(),
 });
 
 export function NewSession() {
@@ -46,8 +48,8 @@ export function NewSession() {
             initialMessage: {
               role: "USER",
               content: state.message,
-              model: DEFAULT_CHAT_MODEL_ID,
-              mode: "BUILD",
+              model: state.model,
+              mode: state.mode
             },
           },
         });
@@ -87,7 +89,7 @@ export function NewSession() {
 
   return (
     <SessionShell onSubmit={() => {}} inputDisabled loading>
-      <UserMessage message={state.message} />
+      <UserMessage message={state.message} mode={state.mode} />
     </SessionShell>
   );
 }
