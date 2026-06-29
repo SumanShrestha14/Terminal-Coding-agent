@@ -2,7 +2,7 @@ import { Hono } from "hono";
 import { streamSSE } from "hono/streaming";
 import { z } from "zod";
 import { zValidator } from "@hono/zod-validator";
-import { streamText as aiStreamText } from "ai";
+import { streamText as aiStreamText , stepCountIs } from "ai";
 import { db } from "@kodo/database/client";
 import { MODE, MessageStatus } from "@kodo/database/enums";
 import {
@@ -11,8 +11,10 @@ import {
   toolCallArgsSchema,
   messagePartsSchema,
 } from "@kodo/shared";
+import {createTools} from "../tools/index";
 import { isSupportedChatModel, resolveChatModel } from "../lib/models";
 import type { Prisma } from "@kodo/database";
+import { buildSystemPrompt } from "../../system-prompt";
 
 const submitSchma = z.object({
   content: z.string(),
@@ -67,14 +69,16 @@ type streamParams = {
   mode: MODE;
   abortController: AbortController;
   history: { role: "user" | "assistant"; content: string }[];
+  cwd : string | null
 };
 
 async function streamAIResponse(
   stream: Parameters<Parameters<typeof streamSSE>[1]>[0],
   params: streamParams,
 ) {
-  const { sessionId, model, mode, abortController, history } = params;
+  const { sessionId, model,cwd, mode, abortController, history } = params;
   const startTime = Date.now();
+  const tools = cwd ? createTools(cwd, mode) : undefined;
   const parts: MessagePart[] = [];
 
   const resolvedModel = resolveChatModel(model);
@@ -107,9 +111,13 @@ async function streamAIResponse(
   try {
     const result = aiStreamText({
       model: resolvedModel.model,
+      system : buildSystemPrompt({cwd , mode}),
       messages: history,
+      tools,
+      stopWhen : tools ? stepCountIs(50) : undefined,
       abortSignal: abortController.signal,
       providerOptions: resolvedModel.providerOptions,
+
     });
     for await (const chunk of result.fullStream) {
       if (stream.aborted) break;
@@ -289,6 +297,7 @@ const chat = new Hono()
           await streamAIResponse(stream, {
             sessionId,
             model: resumableMessage.model,
+            cwd : session.cwd,
             mode: resumableMessage.mode,
             abortController,
             history,
@@ -344,6 +353,7 @@ const chat = new Hono()
         sessionId,
         model: data.model,
         mode: data.mode,
+        cwd : session.cwd,
         abortController,
         history,
       });

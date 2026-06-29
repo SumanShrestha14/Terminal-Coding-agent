@@ -1,17 +1,19 @@
+import { MODE } from "@kodo/database/enums";
 import { useTheme } from "../../providers/theme";
 import { EmptyBorder } from "../border";
 
 type Props = {
   message: string;
+  mode : MODE;
 };
 
-export function UserMessage({ message }: Props) {
+export function UserMessage({ message, mode }: Props) {
   const { colors } = useTheme();
   return (
     <box width={"100%"} alignItems="center">
       <box
         border={["left"]}
-        borderColor={colors.primary}
+        borderColor={mode === "PLAN" ? colors.planMode : colors.primary}
         width={"100%"}
         customBorderChars={{
           ...EmptyBorder,
