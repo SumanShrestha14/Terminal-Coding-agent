@@ -1,4 +1,26 @@
 import { Hono } from "hono";
+
+function getLocalCallbackUrl(state: string) {
+  const [encoded] = state.split(".");
+  if (!encoded) {
+    throw new Error("Invalid state");
+  }
+
+  const payload = JSON.parse(Buffer.from(encoded, "base64url").toString()) as {
+    port?: unknown;
+  };
+  const port = payload.port;
+  if (
+    typeof port !== "number" ||
+    !Number.isInteger(port) ||
+    port < 1 ||
+    port > 65535
+  ) {
+    throw new Error("Invalid port");
+  }
+
+  return new URL(`http://localhost:${port}/callback`);
+}
 const auth = new Hono().get("/callback", async (c) => {
   const code = c.req.query("code");
   const state = c.req.query("state");
@@ -6,7 +28,20 @@ const auth = new Hono().get("/callback", async (c) => {
 
   const errorDescription = c.req.query("error_description");
   if (error) {
-    return c.text(errorDescription ?? error, 400);
+    if (!state) {
+      return c.text(errorDescription ?? error, 400);
+    }
+    try {
+      const redirectUrl = getLocalCallbackUrl(state);
+      redirectUrl.searchParams.set("error", error);
+      if (errorDescription) {
+        redirectUrl.searchParams.set("error_description", errorDescription);
+      }
+      redirectUrl.searchParams.set("state", state);
+      return c.redirect(redirectUrl.toString());
+    } catch {
+      return c.text(errorDescription ?? error, 400);
+    }
   }
 
   if (!code || !state) {
@@ -14,20 +49,12 @@ const auth = new Hono().get("/callback", async (c) => {
   }
 
   try {
-    const [encoded] = state.split(".");
-    if (!encoded) {
-      throw new Error("Invalid state");
-    }
-
-    const payload = JSON.parse(Buffer.from(encoded, "base64url").toString());
-    const port = payload.port;
-    if (!port || typeof port !== "number") {
-      throw new Error("Invalid port");
-    }
-    const redirectUrl = `http://localhost:${port}/callback?code=${encodeURIComponent(code)}&state=${encodeURIComponent(state)}`;
-    return c.redirect(redirectUrl);
+    const redirectUrl = getLocalCallbackUrl(state);
+    redirectUrl.searchParams.set("code", code);
+    redirectUrl.searchParams.set("state", state);
+    return c.redirect(redirectUrl.toString());
   } catch (e) {
-    return c.text("Invalid authentication state");
+    return c.text("Invalid authentication state", 400);
   }
 });
 

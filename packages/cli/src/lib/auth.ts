@@ -5,7 +5,6 @@ import {
   writeFileSync,
   unlinkSync,
 } from "node:fs";
-import { unlink } from "node:fs/promises";
 import { homedir } from "node:os";
 import { join } from "node:path";
 
@@ -36,7 +35,7 @@ export function saveAuth(data: AuthData) {
 
 export function clearAuth() {
   try {
-    unlink(AUTH_FILE);
+    unlinkSync(AUTH_FILE);
   } catch {
     //file does not exist, ignore
   }
