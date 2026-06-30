@@ -6,6 +6,7 @@ import { z } from "zod";
 import { db } from "@kodo/database/client";
 import { ROLE, MODE, MessageStatus } from "@kodo/database/enums";
 import { findSupportedChatModel } from "@kodo/shared";
+import type { AuthenticatedEnv } from "../middleware/require-auth";
 
 const createSessionSchema = z.object({
   title: z.string(),
@@ -41,9 +42,11 @@ const createSessionValidator = zValidator(
   },
 );
 
-const app = new Hono()
+const app = new Hono<AuthenticatedEnv>()
   .get("/", async (c) => {
+    const userId = c.get("userId");
     const sessions = await db.session.findMany({
+      where: { userId },
       orderBy: { createdAt: "desc" },
       select: {
         id: true,
@@ -57,8 +60,10 @@ const app = new Hono()
   })
   .get("/:id", async (c) => {
     const { id } = c.req.param();
+    const userId = c.get("userId");
+
     const session = await db.session.findUnique({
-      where: { id },
+      where: { id, userId },
       include: {
         messages: {
           orderBy: { createdAt: "asc" },
@@ -67,7 +72,10 @@ const app = new Hono()
     });
 
     if (!session) {
-    Sentry.logger.warn("Session not found", { userId: "mock-user-id", sessionId: id });
+      Sentry.logger.warn("Session not found", {
+        userId: userId,
+        sessionId: id,
+      });
       return c.json(
         {
           error: "Session not found",
@@ -76,18 +84,20 @@ const app = new Hono()
       );
     }
 
-    Sentry.logger.info("Loaded Session",{
-      sessionId : id,
-    })
+    Sentry.logger.info("Loaded Session", {
+      sessionId: id,
+    });
 
     return c.json(session);
   })
   .post("/", createSessionValidator, async (c) => {
+    const userId = c.get("userId");
+
     const { initialMessage, ...data } = c.req.valid("json");
     const session = await db.session.create({
       data: {
         ...data,
-        userId: "mock-user-id",
+        userId: userId,
         ...(initialMessage && {
           messages: {
             create: {
@@ -100,8 +110,8 @@ const app = new Hono()
       include: { messages: true },
     });
     Sentry.logger.info("Created new session", {
-      sessionId : session.id,
-      title : session.title,
+      sessionId: session.id,
+      title: session.title,
     });
     return c.json(session, 201);
   });

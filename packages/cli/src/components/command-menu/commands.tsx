@@ -6,6 +6,8 @@ import {
   ThemeDialogs,
 } from "../dialogs";
 import type { Command } from "./types";
+import { performLogin } from "../../lib/oauth";
+import { clearAuth } from "../../lib/auth";
 
 export const COMMANDS: Command[] = [
   {
@@ -20,8 +22,15 @@ export const COMMANDS: Command[] = [
     name: "login",
     description: "Log in to your account",
     value: "/login",
-    action: (ctx) => {
+    action: async (ctx) => {
       ctx.toast.show({ message: "Logging in..." });
+      try {
+        await performLogin();
+        ctx.toast.show({ message: "Logged in successfully!" });
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
+        ctx.toast.show({ message: `Failed to log in: ${message}` });
+      }
     },
   },
   {
@@ -29,7 +38,8 @@ export const COMMANDS: Command[] = [
     description: "Log out of your account",
     value: "/logout",
     action: (ctx) => {
-      ctx.toast.show({ message: "Logging out..." });
+      clearAuth();
+      ctx.toast.show({ message: "Logged out successfully!" });
     },
   },
   {

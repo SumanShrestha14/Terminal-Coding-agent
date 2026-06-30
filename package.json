@@ -1,14 +1,14 @@
 {
-    "name": "kodo",
-    "version": "1.0.0",
-    "workspaces": [
-        "packages/*"
-    ],
-    "scripts": {
-        "dev:cli": "bun run --watch packages/cli/src/index.tsx",
-        "dev:server": "bun run --hot packages/server/src/index.ts"
-    },
-    "devDependencies": {
-        "@types/react": "^19.2.16"
-    }
+  "name": "kodo",
+  "version": "1.0.0",
+  "workspaces": [
+    "packages/*"
+  ],
+  "scripts": {
+    "dev:cli": "bun run --watch packages/cli/src/index.tsx",
+    "dev:server": "bun run --hot packages/server/src/index.ts"
+  },
+  "devDependencies": {
+    "@types/react": "^19.2.16"
+  }
 }
