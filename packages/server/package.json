@@ -7,12 +7,13 @@
   },
   "scripts": {
     "dev": "bun run --hot src/index.ts",
-    "build" : "bun build src/index.ts --outdir dist --target bun",
+    "build": "bun build src/index.ts --outdir dist --target bun",
     "postinstall": "bun run --cwd ../database db:generate"
   },
   "dependencies": {
     "@ai-sdk/anthropic": "^3.0.84",
     "@ai-sdk/openai": "^3.0.71",
+    "@clerk/backend": "^3.8.4",
     "@hono/zod-validator": "^0.8.0",
     "@kodo/database": "workspace:*",
     "@kodo/shared": "workspace:*",

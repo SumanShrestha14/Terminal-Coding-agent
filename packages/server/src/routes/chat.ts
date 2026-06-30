@@ -15,6 +15,7 @@ import {createTools} from "../tools/index";
 import { isSupportedChatModel, resolveChatModel } from "../lib/models";
 import type { Prisma } from "@kodo/database";
 import { buildSystemPrompt } from "../../system-prompt";
+import type { AuthenticatedEnv } from "../middleware/require-auth";
 
 const submitSchma = z.object({
   content: z.string(),
@@ -251,11 +252,13 @@ async function streamAIResponse(
   }
 }
 
-const chat = new Hono()
+const chat = new Hono<AuthenticatedEnv>()
   .post("/:sessionId/resume", async (ctx) => {
     const { sessionId } = ctx.req.param();
+    const userId = ctx.get("userId");
+
     const session = await db.session.findUnique({
-      where: { id: sessionId },
+      where: { id: sessionId  ,userId},
       include: { messages: { orderBy: { createdAt: "asc" } } },
     });
     if (!session) {
@@ -313,8 +316,10 @@ const chat = new Hono()
   })
   .post("/:sessionId", submitValidator, async (ctx) => {
     const { sessionId } = ctx.req.param();
+    const userId = ctx.get("userId");
+
     const session = await db.session.findUnique({
-      where: { id: sessionId },
+      where: { id: sessionId, userId },
       include: { messages: { orderBy: { createdAt: "asc" } } },
     });
     if (!session) {
