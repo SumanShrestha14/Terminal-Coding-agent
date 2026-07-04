@@ -1,10 +1,10 @@
-import { MODE } from "@kodo/database/enums";
+import { Mode, type ModeType } from "@kodo/shared";
 import { useTheme } from "../../providers/theme";
 import { EmptyBorder } from "../border";
 
 type Props = {
   message: string;
-  mode : MODE;
+  mode : ModeType;
 };
 
 export function UserMessage({ message, mode }: Props) {
