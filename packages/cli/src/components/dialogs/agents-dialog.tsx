@@ -1,16 +1,16 @@
 import { useCallback } from "react";
 import { useDialog } from "../../providers/dialog";
 import { DialogSearchList } from "../dialog-search-list";
-import { MODE } from "@kodo/database/enums";
+import { Mode , type ModeType } from "@kodo/shared";
 
-const AVAILABLE_MODES: MODE[] = [MODE.BUILD, MODE.PLAN];
+const AVAILABLE_MODES: ModeType[] = [Mode.BUILD, Mode.PLAN];
 type AgentDialogProps = {
-  currentMode: MODE;
-  onSelectMode: (mode: MODE) => void;
+  currentMode: ModeType;
+  onSelectMode: (mode: ModeType) => void;
 };
 
-function getModeLabel(mode: MODE) {
-  return mode === MODE.BUILD ? "Build" : "Plan";
+function getModeLabel(mode: ModeType) {
+  return mode === Mode.BUILD ? "Build" : "Plan";
 }
 
 export const AgentsDialogs = ({
@@ -20,7 +20,7 @@ export const AgentsDialogs = ({
   const dialog = useDialog();
 
   const handleSelect = useCallback(
-    (nextMode: MODE) => {
+    (nextMode: ModeType) => {
       onSelectMode(nextMode);
       dialog.close();
     },

@@ -4,23 +4,10 @@ import { HTTPException } from "hono/http-exception";
 import * as Sentry from "@sentry/hono/bun";
 import { z } from "zod";
 import { db } from "@kodo/database/client";
-import { ROLE, MODE, MessageStatus } from "@kodo/database/enums";
-import { findSupportedChatModel } from "@kodo/shared";
 import type { AuthenticatedEnv } from "../middleware/require-auth";
 
 const createSessionSchema = z.object({
   title: z.string(),
-  cwd: z.string(),
-  initialMessage: z
-    .object({
-      role: z.enum(ROLE),
-      content: z.string(),
-      mode: z.enum(MODE),
-      model: z.string().refine((model) => !!findSupportedChatModel(model), {
-        message: "Unsupported model",
-      }),
-    })
-    .optional(),
 });
 
 const createSessionValidator = zValidator(
@@ -64,11 +51,6 @@ const app = new Hono<AuthenticatedEnv>()
 
     const session = await db.session.findUnique({
       where: { id, userId },
-      include: {
-        messages: {
-          orderBy: { createdAt: "asc" },
-        },
-      },
     });
 
     if (!session) {
@@ -93,21 +75,12 @@ const app = new Hono<AuthenticatedEnv>()
   .post("/", createSessionValidator, async (c) => {
     const userId = c.get("userId");
 
-    const { initialMessage, ...data } = c.req.valid("json");
+    const data = c.req.valid("json");
     const session = await db.session.create({
       data: {
         ...data,
         userId: userId,
-        ...(initialMessage && {
-          messages: {
-            create: {
-              ...initialMessage,
-              status: MessageStatus.COMPLETE,
-            },
-          },
-        }),
       },
-      include: { messages: true },
     });
     Sentry.logger.info("Created new session", {
       sessionId: session.id,

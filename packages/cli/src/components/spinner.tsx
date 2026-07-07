@@ -1,12 +1,12 @@
-import "opentui-spinner/react" 
+import "opentui-spinner/react"
 import { useTheme } from "../providers/theme"
-import { MODE } from "@kodo/database/enums";
+import { Mode, type ModeType } from "@kodo/shared";
 type SpinnerProps = {
-    mode ?: MODE
+    mode ?: ModeType
 }
-export function Spinner({mode = MODE.BUILD}:SpinnerProps) {
+export function Spinner({mode = Mode.BUILD}:SpinnerProps) {
     const { colors } = useTheme();
-    const activeColor = mode === MODE.BUILD ? colors.primary : colors.planMode
+    const activeColor = mode === Mode.BUILD ? colors.primary : colors.planMode
     return (
         <spinner color={activeColor} name={"aesthetic"} />
     )

@@ -1,5 +1,9 @@
-import { MODE } from "@kodo/database/enums";
-import { DEFAULT_CHAT_MODEL_ID, type SupportedChatModelId } from "@kodo/shared";
+import {
+  DEFAULT_CHAT_MODEL_ID,
+  Mode,
+  type SupportedChatModelId,
+  type ModeType
+} from "@kodo/shared";
 import {
   createContext,
   useCallback,
@@ -9,9 +13,9 @@ import {
 } from "react";
 
 type PromptConfigContextValue = {
-  mode: MODE;
+  mode: ModeType;
   toggleMode: () => void;
-  setMode: (mode: MODE) => void;
+  setMode: (mode: ModeType) => void;
   model: SupportedChatModelId;
   setModel: (model: SupportedChatModelId) => void;
 };
@@ -34,13 +38,13 @@ type PromptConfigProviderProps = {
   children: ReactNode;
 };
 export function PromptConfigProvider({ children }: PromptConfigProviderProps) {
-  const [mode, setMode] = useState<MODE>(MODE.BUILD);
+  const [mode, setMode] = useState<ModeType>(Mode.BUILD);
   const [model, setModel] = useState<SupportedChatModelId>(
     DEFAULT_CHAT_MODEL_ID,
   );
 
   const toggleMode = useCallback(() => {
-    setMode((prevMode) => (prevMode === MODE.BUILD ? MODE.PLAN : MODE.BUILD));
+    setMode((prevMode) => (prevMode === Mode.BUILD ? Mode.PLAN : Mode.BUILD));
   }, []);
 
   return (
