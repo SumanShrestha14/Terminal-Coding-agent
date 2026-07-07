@@ -10,8 +10,6 @@ export type AuthenticatedEnv = {
 export const requireAuth = createMiddleware<AuthenticatedEnv>(
   async (c, next) => {
     try {
-      return c.json({ error: "this is require middle ware auth" }, 401);
-
       const auth = await authenticationOAuthRequest(c.req.raw);
       if (!auth) {
         return c.json({ error: "Unauthorized. Run /login to continue" }, 401);
