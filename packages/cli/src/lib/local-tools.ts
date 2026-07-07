@@ -1,4 +1,4 @@
-import { mkdir, readFile, readdir, writeFile, stat } from "fs/promises"
+import { mkdir, readFile, readdir, writeFile, stat,open } from "fs/promises"
 import { dirname, isAbsolute, relative, join, resolve } from "path"
 import { toolInputSchemas, Mode, type ModeType } from "@kodo/shared"
 
@@ -31,12 +31,29 @@ export async function executeLocalTools(toolName : string , input : unknown , mo
     case "readFile": {
       const { path } = toolInputSchemas.readFile.parse(input)
       const { resolved } = resolveInsidePath(path)
-      const content = await readFile(resolved, "utf8")
-      return content.length > MAX_FILE_SIZE
-        ? { content: content.slice(0, MAX_FILE_SIZE), truncated: true, totalLength: content.length }
-        : { content }
+
+      const { size } = await stat(resolved)
+
+      if (size <= MAX_FILE_SIZE) {
+        const content = await readFile(resolved, "utf8")
+        return { content }
+      }
+
+      // File exceeds the cap — read only a bounded number of bytes instead of the whole file
+      const fileHandle = await open(resolved, "r")
+      try {
+        const buffer = Buffer.alloc(MAX_FILE_SIZE)
+        const { bytesRead } = await fileHandle.read(buffer, 0, MAX_FILE_SIZE, 0)
+        return {
+          content: buffer.toString("utf8", 0, bytesRead),
+          truncated: true,
+          totalLength: size
+        }
+      } finally {
+        await fileHandle.close()
+      }
     }
-      break;
+    break;
     case "listDirectory":
       {
         const { path } = toolInputSchemas.listDirectory.parse(input)

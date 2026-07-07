@@ -1,7 +1,7 @@
-import type { modeType } from "@kodo/shared";
+import type { ModeType } from "@kodo/shared";
 
 type SystemPromptParams = {
-  mode: modeType;
+  mode: ModeType;
 };
 
 export function buildSystemPrompt({ mode }: SystemPromptParams): string {

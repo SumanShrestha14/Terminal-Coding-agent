@@ -1,6 +1,7 @@
 import { Hono } from "hono";
 import { zValidator } from "@hono/zod-validator";
 import { z } from "zod";
+import { consumeStream } from "ai";
 import {
   convertToModelMessages,
   streamText,
@@ -118,6 +119,7 @@ const app = new Hono<AuthenticatedEnv>()
       });
 
       return result.toUIMessageStreamResponse<KodoUIMessage>({
+        consumeSseStream: consumeStream,
         originalMessages: nextMessages,
         messageMetadata({ part }) {
           if (part.type === "start") {
@@ -144,8 +146,6 @@ const app = new Hono<AuthenticatedEnv>()
               messages: event.messages as unknown as Prisma.InputJsonValue,
             },
           });
-
-          if (!completedUsage) return;
         },
         onError(error) {
           return error instanceof Error ? error.message : String(error);

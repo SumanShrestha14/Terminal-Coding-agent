@@ -13,7 +13,7 @@ export function UserMessage({ message, mode }: Props) {
     <box width={"100%"} alignItems="center">
       <box
         border={["left"]}
-        borderColor={mode === "PLAN" ? colors.planMode : colors.primary}
+        borderColor={mode === Mode.PLAN ? colors.planMode : colors.primary}
         width={"100%"}
         customBorderChars={{
           ...EmptyBorder,

@@ -85,7 +85,7 @@ function SessionChat({
   });
 
   useEffect(() => {
-    if (!initialPrompt && hasSubmittedInitialPromptRef.current) return;
+    if (!initialPrompt || hasSubmittedInitialPromptRef.current) return;
 
     hasSubmittedInitialPromptRef.current = true;
     void submit({
