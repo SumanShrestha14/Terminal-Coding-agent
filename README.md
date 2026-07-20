@@ -1,1 +1,1 @@
-# Kodo - An ai terminal coding agent 
+# Kodo - An ai harness terminal coding agent 
