@@ -3,6 +3,9 @@
   "workspaces": {
     "": {
       "name": "KODO",
+      "dependencies": {
+        "dotenv": "^17.4.2",
+      },
       "devDependencies": {
         "@types/react": "^19.2.16",
       },

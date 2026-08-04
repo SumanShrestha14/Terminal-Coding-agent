@@ -4,7 +4,11 @@
   "type": "module",
   "private": true,
   "scripts": {
-    "dev": "bun run --watch src/index.tsx"
+    "dev": "bun run --watch src/index.tsx",
+    "build": "bun build src/index.tsx --outdir dist --target bun"
+  },
+  "bin": {
+    "kodo": "./bin/kodo"
   },
   "devDependencies": {
     "@kodo/server": "workspace:*",
